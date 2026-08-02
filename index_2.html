@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>YieldScope Terminal | Stablecoin Yield &amp; Arbitrage Desk</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* ---- Terminal palette: graphite + gold, in the spirit of a trading desk ---- */
+      :root {
+        --bg-void: #0c0d10;
+        --bg-panel: #16171d;
+        --bg-panel-raised: #1c1e26;
+        --line: rgba(212, 169, 62, 0.16);
+        --line-strong: rgba(212, 169, 62, 0.38);
+        --text-primary: #eae6da;
+        --text-muted: #8b8d97;
+        --text-dim: #5a5c66;
+        --gold: #d4a93e;
+        --gold-soft: rgba(212, 169, 62, 0.14);
+        --red: #c1443a;
+        --red-soft: rgba(193, 68, 58, 0.14);
+        --blue-grey: #6b7686;
+        --blue-grey-soft: rgba(107, 118, 134, 0.14);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "IBM Plex Sans", sans-serif;
+        background: var(--bg-void);
+        color: var(--text-primary);
+        background-image: linear-gradient(180deg, #101116 0%, #0c0d10 220px);
+      }
+
+      .mono {
+        font-family: "IBM Plex Mono", monospace;
+      }
+
+      /* A panel reads like a terminal pane: hairline border, near-flat surface, no soft glow */
+      .panel {
+        background: var(--bg-panel);
+        border: 1px solid var(--line);
+        border-radius: 3px;
+      }
+
+      .panel-raised {
+        background: var(--bg-panel-raised);
+      }
+
+      .eyebrow {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 10.5px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--gold);
+      }
+
+      .hairline {
+        border-color: var(--line);
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid var(--line-strong);
+        background: var(--gold-soft);
+        color: var(--gold);
+        border-radius: 2px;
+        padding: 3px 9px;
+        font-size: 11px;
+        font-family: "IBM Plex Mono", monospace;
+      }
+
+      .badge .dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+
+      .badge--muted {
+        border-color: rgba(139, 141, 151, 0.35);
+        background: var(--blue-grey-soft);
+        color: var(--blue-grey);
+      }
+
+      .fade-up {
+        opacity: 0;
+        transform: translateY(8px);
+        animation: fadeUp 0.4s ease forwards;
+      }
+
+      @keyframes fadeUp {
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* ---- Signature element: a scrolling desk ticker built from the page's own live figures ---- */
+      .ticker-tape {
+        overflow: hidden;
+        white-space: nowrap;
+        border-bottom: 1px solid var(--line);
+        background: #08090b;
+      }
+
+      .ticker-tape__track {
+        display: inline-flex;
+        align-items: center;
+        animation: tickerScroll 42s linear infinite;
+        will-change: transform;
+      }
+
+      .ticker-tape:hover .ticker-tape__track {
+        animation-play-state: paused;
+      }
+
+      @keyframes tickerScroll {
+        from {
+          transform: translateX(0);
+        }
+        to {
+          transform: translateX(-50%);
+        }
+      }
+
+      .ticker-item {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 12px;
+        color: var(--text-muted);
+        padding: 9px 20px;
+        border-right: 1px solid rgba(139, 141, 151, 0.15);
+        white-space: nowrap;
+      }
+
+      .ticker-item b {
+        color: var(--text-primary);
+        font-weight: 600;
+      }
+
+      .ticker-item.up b {
+        color: var(--gold);
+      }
+
+      .ticker-item.down b {
+        color: var(--red);
+      }
+
+      .sparkline-grid {
+        background-image: linear-gradient(to right, rgba(139, 141, 151, 0.1) 1px, transparent 1px),
+          linear-gradient(to top, rgba(139, 141, 151, 0.1) 1px, transparent 1px);
+        background-size: 20% 100%, 100% 25%;
+        background-color: rgba(8, 9, 11, 0.6);
+      }
+
+      .range-track {
+        position: relative;
+        height: 6px;
+        border-radius: 2px;
+        background: rgba(139, 141, 151, 0.18);
+      }
+
+      .range-fill {
+        position: absolute;
+        top: 0;
+        height: 100%;
+        border-radius: 2px;
+        background: linear-gradient(90deg, var(--blue-grey), var(--gold));
+      }
+
+      ::-webkit-scrollbar {
+        height: 8px;
+        width: 8px;
+      }
+
+      ::-webkit-scrollbar-thumb {
+        background: rgba(212, 169, 62, 0.25);
+        border-radius: 4px;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .ticker-tape__track {
+          animation: none;
+        }
+        .fade-up {
+          animation: none;
+          opacity: 1;
+          transform: none;
+        }
+      }
+    </style>
+  </head>
+  <body class="min-h-screen">
+    <!-- Desk ticker: built live from this page's own gas + yield + spread figures, not decorative filler -->
+    <div class="ticker-tape">
+      <div id="ticker-track" class="ticker-tape__track">
+        <span class="ticker-item">Loading desk feed&hellip;</span>
+      </div>
+    </div>
+
+    <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <header class="mb-8 panel p-4 md:p-6">
+        <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div class="flex items-center gap-3">
+            <div class="h-11 w-11 border border-[var(--line-strong)] grid place-items-center" style="border-radius: 3px;">
+              <span class="mono text-[var(--gold)] text-sm font-bold">YS</span>
+            </div>
+            <div>
+              <p class="text-lg font-semibold tracking-wide" data-i18n="brandTitle">YieldScope Terminal</p>
+              <p class="text-sm text-[var(--text-muted)]" data-i18n="brandSubtitle">Stablecoin Yield &amp; Arbitrage Desk</p>
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-3 sm:items-end">
+            <label for="locale-switch" class="eyebrow" data-i18n="languageLabel">Language</label>
+            <select id="locale-switch" class="w-full border border-[var(--line-strong)] bg-[var(--bg-void)] px-3 py-2 text-sm text-[var(--gold)] focus:outline-none sm:w-[170px]" style="border-radius: 2px;">
+              <option value="en">English</option>
+              <option value="es">Espanol</option>
+              <option value="ko">한국어</option>
+              <option value="ja">日本語</option>
+              <option value="ru">Русский</option>
+              <option value="uk">Українська</option>
+              <option value="vi">Tiếng Việt</option>
+              <option value="hi">हिन्दी</option>
+              <option value="id">Bahasa Indonesia</option>
+            </select>
+          </div>
+
+          <div class="panel-raised border border-[var(--line)] px-4 py-3" style="border-radius: 3px;">
+            <p class="eyebrow" data-i18n="gasTracker">Gas Tracker</p>
+            <div class="mt-2 grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-2 lg:grid-cols-4">
+              <span class="inline-flex items-center justify-between gap-2 border border-[var(--line)] bg-[var(--bg-void)]/70 px-3 py-2 mono text-[var(--text-primary)]" style="border-radius: 2px;">
+                <span>Base</span>
+                <b id="gas-base" class="text-[var(--gold)]">15 gwei</b>
+              </span>
+              <span class="inline-flex items-center justify-between gap-2 border border-[var(--line)] bg-[var(--bg-void)]/70 px-3 py-2 mono text-[var(--text-primary)]" style="border-radius: 2px;">
+                <span>Ethereum</span>
+                <b id="gas-ethereum" class="text-[var(--gold)]">4 gwei</b>
+              </span>
+              <span class="inline-flex items-center justify-between gap-2 border border-[var(--line)] bg-[var(--bg-void)]/70 px-3 py-2 mono text-[var(--text-primary)]" style="border-radius: 2px;">
+                <span>Arbitrum</span>
+                <b id="gas-arbitrum" class="text-[var(--gold)]">0.02 gwei</b>
+              </span>
+              <span class="inline-flex items-center justify-between gap-2 border border-[var(--line)] bg-[var(--bg-void)]/70 px-3 py-2 mono text-[var(--text-primary)]" style="border-radius: 2px;">
+                <span>Optimism</span>
+                <b id="gas-optimism" class="text-[var(--gold)]">0.001 gwei</b>
+              </span>
+              <span class="inline-flex items-center justify-between gap-2 border border-[var(--line)] bg-[var(--bg-void)]/70 px-3 py-2 mono text-[var(--text-primary)]" style="border-radius: 2px;">
+                <span>zkSync</span>
+                <b id="gas-zksync" class="text-[var(--gold)]">0.03 gwei</b>
+              </span>
+              <span class="inline-flex items-center justify-between gap-2 border border-[var(--line)] bg-[var(--bg-void)]/70 px-3 py-2 mono text-[var(--text-primary)]" style="border-radius: 2px;">
+                <span>Polygon</span>
+                <b id="gas-polygon" class="text-[var(--gold)]">28 gwei</b>
+              </span>
+              <span class="inline-flex items-center justify-between gap-2 border border-[var(--line)] bg-[var(--bg-void)]/70 px-3 py-2 mono text-[var(--text-primary)]" style="border-radius: 2px;">
+                <span>Solana</span>
+                <b id="gas-solana" class="text-[var(--gold)]">0.00005 SOL</b>
+              </span>
+              <span class="inline-flex items-center justify-between gap-2 border border-[var(--line)] bg-[var(--bg-void)]/70 px-3 py-2 mono text-[var(--text-primary)]" style="border-radius: 2px;">
+                <span>BNB Chain</span>
+                <b id="gas-bnb" class="text-[var(--gold)]">3 gwei</b>
+              </span>
+              <span class="inline-flex items-center justify-between gap-2 border border-[var(--line)] bg-[var(--bg-void)]/70 px-3 py-2 mono text-[var(--text-primary)]" style="border-radius: 2px;">
+                <span>Avalanche</span>
+                <b id="gas-avalanche" class="text-[var(--gold)]">0.02 gwei</b>
+              </span>
+            </div>
+            <p id="gas-status" class="mt-2 text-[10px] uppercase tracking-[0.18em] text-[var(--text-dim)]">Live gas feeds from public RPCs</p>
+          </div>
+        </div>
+      </header>
+
+      <main class="space-y-8">
+        <section aria-labelledby="yields-heading">
+          <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <h1 id="yields-heading" class="text-xl font-semibold tracking-wide sm:text-2xl" data-i18n="topYields">Top Live Stablecoin Yields</h1>
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between lg:justify-end">
+              <p class="eyebrow" data-i18n="snapshotDetail">Live APY cards with venue trend lines</p>
+              <label class="flex items-center gap-2 border border-[var(--line)] bg-[var(--bg-panel)] px-3 py-2 text-xs text-[var(--text-primary)]" style="border-radius: 2px;">
+                <span class="uppercase tracking-[0.14em] text-[var(--text-muted)]">Timeframe</span>
+                <select id="timeframe-switch" class="bg-transparent text-[var(--gold)] outline-none">
+                  <option value="1h">1 hour</option>
+                  <option value="6h">6 hour</option>
+                  <option value="1d" selected>1 day</option>
+                  <option value="7d">7 day</option>
+                  <option value="30d">30 day</option>
+                  <option value="3m">3 months</option>
+                  <option value="6m">6 months</option>
+                  <option value="1y">1 year</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div id="yield-grid" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <!-- AUTO:YIELD_CARDS:START -->
+<article class="yield-card fade-up panel p-5" style="animation-delay: 0.05s">
+  <div class="mb-3 flex items-center justify-between">
+    <span class="badge"><span class="dot"></span>Base</span>
+    <p class="mono text-xs text-[var(--text-muted)]">TVL: $2.92M</p>
+  </div>
+  <h3 class="text-lg font-semibold">USDC</h3>
+  <p class="mono mt-2 text-2xl font-bold text-[var(--gold)]">932.14% APY</p>
+  <div class="yield-mini-chart mt-3"></div>
+</article>
+<article class="yield-card fade-up panel p-5" style="animation-delay: 0.10s">
+  <div class="mb-3 flex items-center justify-between">
+    <span class="badge"><span class="dot"></span>Ethereum</span>
+    <p class="mono text-xs text-[var(--text-muted)]">TVL: $8.00M</p>
+  </div>
+  <h3 class="text-lg font-semibold">USDT</h3>
+  <p class="mono mt-2 text-2xl font-bold text-[var(--gold)]">44.20% APY</p>
+  <div class="yield-mini-chart mt-3"></div>
+</article>
+<article class="yield-card fade-up panel p-5" style="animation-delay: 0.15s">
+  <div class="mb-3 flex items-center justify-between">
+    <span class="badge"><span class="dot"></span>Ethereum</span>
+    <p class="mono text-xs text-[var(--text-muted)]">TVL: $6.00M</p>
+  </div>
+  <h3 class="text-lg font-semibold">USDS</h3>
+  <p class="mono mt-2 text-2xl font-bold text-[var(--gold)]">18.50% APY</p>
+  <div class="yield-mini-chart mt-3"></div>
+</article>
+<article class="yield-card fade-up panel p-5" style="animation-delay: 0.20s">
+  <div class="mb-3 flex items-center justify-between">
+    <span class="badge"><span class="dot"></span>Base</span>
+    <p class="mono text-xs text-[var(--text-muted)]">TVL: $5.46M</p>
+  </div>
+  <h3 class="text-lg font-semibold">USDC</h3>
+  <p class="mono mt-2 text-2xl font-bold text-[var(--gold)]">120.44% APY</p>
+  <div class="yield-mini-chart mt-3"></div>
+</article>
+<article class="yield-card fade-up panel p-5" style="animation-delay: 0.25s">
+  <div class="mb-3 flex items-center justify-between">
+    <span class="badge"><span class="dot"></span>Arbitrum</span>
+    <p class="mono text-xs text-[var(--text-muted)]">TVL: $2.00M</p>
+  </div>
+  <h3 class="text-lg font-semibold">USDT</h3>
+  <p class="mono mt-2 text-2xl font-bold text-[var(--gold)]">31.10% APY</p>
+  <div class="yield-mini-chart mt-3"></div>
+</article>
+            <!-- AUTO:YIELD_CARDS:END -->
+          </div>
+
+          <section class="mt-6 panel p-5 sm:p-6" aria-labelledby="arb-heading">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <h2 id="arb-heading" class="text-lg font-semibold tracking-wide sm:text-xl" data-i18n="arbHeading">Cross-Venue Arbitrage Spread</h2>
+              <p class="eyebrow" data-i18n="arbDetail">Gap between best and worst APY per asset, right now</p>
+            </div>
+            <div id="arb-grid" class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"></div>
+          </section>
+
+          <section class="mt-6 panel p-5 sm:p-6" aria-labelledby="coin-trends-heading">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <h2 id="coin-trends-heading" class="text-lg font-semibold tracking-wide sm:text-xl" data-i18n="coinTrends">Stablecoin Coin Trends</h2>
+              <p class="eyebrow" data-i18n="coinTrendsDetail">APY by coin across the current top pools</p>
+            </div>
+            <div id="coin-trends-grid" class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"></div>
+          </section>
+        </section>
+
+        <section aria-labelledby="briefing-heading" class="panel p-5 sm:p-6">
+          <h2 id="briefing-heading" class="text-xl font-semibold tracking-wide" data-i18n="dailyBriefing">Daily Yield Analytics Briefing</h2>
+          <div id="briefing-copy" class="mt-4 border border-[var(--line)] bg-[var(--bg-void)]/50 p-4 leading-relaxed text-[15px] text-[var(--text-primary)] sm:p-5 sm:text-base" style="border-radius: 3px;">
+            <!-- AUTO:BRIEFING:START -->
+<p>Top stablecoin carry today is led by USDC on Base at <strong>932.14% APY</strong>, while the selected opportunity set averages <strong>229.28% APY</strong> across <strong>$24.38M TVL</strong>. Capital appears concentrated in a handful of deep pools, which supports execution quality but can tighten exits if volatility spikes. Practical positioning: prioritize diversified exposure across at least two networks while monitoring daily APY compression.</p>
+            <!-- AUTO:BRIEFING:END -->
+          </div>
+        </section>
+
+        <section aria-labelledby="news-heading" class="panel p-5 sm:p-6">
+          <div class="mb-4 flex items-center justify-between">
+            <h2 id="news-heading" class="text-xl font-semibold tracking-wide" data-i18n="breakingNews">Breaking News</h2>
+            <span class="badge badge--muted" data-i18n="updatedDaily">Updated daily</span>
+          </div>
+
+          <ul id="news-feed" class="space-y-2 text-sm sm:text-[15px]">
+            <!-- AUTO:NEWS:START -->
+<li class="group border border-[var(--line)] bg-[var(--bg-void)]/50 px-4 py-3 transition-colors duration-200 hover:border-[var(--line-strong)]" style="border-radius: 3px;">
+  <span class="badge mr-2">[CRYPTO]</span>
+  <span class="text-[var(--text-primary)]">The reverse bridge: Crypto meets Wall Street using perps</span>
+</li>
+<li class="group border border-[var(--line)] bg-[var(--bg-void)]/50 px-4 py-3 transition-colors duration-200 hover:border-[var(--line-strong)]" style="border-radius: 3px;">
+  <span class="badge mr-2">[BTC]</span>
+  <span class="text-[var(--text-primary)]">Unlike the FTX collapse, the $89 million Coldcard exploit has investors sending bitcoin back to exchanges</span>
+</li>
+<li class="group border border-[var(--line)] bg-[var(--bg-void)]/50 px-4 py-3 transition-colors duration-200 hover:border-[var(--line-strong)]" style="border-radius: 3px;">
+  <span class="badge mr-2">[CRYPTO]</span>
+  <span class="text-[var(--text-primary)]">Strategy holds STRC dividend at 12%</span>
+</li>
+<li class="group border border-[var(--line)] bg-[var(--bg-void)]/50 px-4 py-3 transition-colors duration-200 hover:border-[var(--line-strong)]" style="border-radius: 3px;">
+  <span class="badge mr-2">[BTC]</span>
+  <span class="text-[var(--text-primary)]">Bitcoin cold-wallet attack spreads to 4,500 addresses as losses near $89 million</span>
+</li>
+<li class="group border border-[var(--line)] bg-[var(--bg-void)]/50 px-4 py-3 transition-colors duration-200 hover:border-[var(--line-strong)]" style="border-radius: 3px;">
+  <span class="badge mr-2">[CRYPTO]</span>
+  <span class="text-[var(--text-primary)]">Tokenized stock trading surged 288% in July, but one QQQ token drove most of it</span>
+</li>
+            <!-- AUTO:NEWS:END -->
+          </ul>
+        </section>
+      </main>
+
+      <footer class="mt-8 text-center text-[11px] text-[var(--text-dim)]">
+        <p>Sparkline trends and the desk ticker are derived from this page's own displayed figures for illustration; they are not third-party live price feeds.</p>
+      </footer>
+    </div>
+
+    <script>
+      const i18n = {
+        en: {
+          brandTitle: "YieldScope Terminal",
+          brandSubtitle: "Stablecoin Yield & Arbitrage Desk",
+          languageLabel: "Language",
+          gasTracker: "Gas Tracker",
+          topYields: "Top Live Stablecoin Yields",
+          snapshotDetail: "Live APY cards with venue trend lines",
+          arbHeading: "Cross-Venue Arbitrage Spread",
+          arbDetail: "Gap between best and worst APY per asset, right now",
+          dailyBriefing: "Daily Yield Analytics Briefing",
+          breakingNews: "Breaking News",
+          updatedDaily: "Updated daily",
+          coinTrends: "Stablecoin Coin Trends",
+          coinTrendsDetail: "APY by coin across the current top pools",
+          briefingHtml: (stats) => `
+            <p>Top stablecoin carry today is led by ${stats.asset} on ${stats.network} at <strong>${stats.apy} APY</strong>, while the selected opportunity set averages <strong>${stats.avgApy} APY</strong> across <strong>${stats.totalTvl} TVL</strong>. Capital appears concentrated in a handful of deep pools, which supports execution quality but can tighten exits if volatility spikes. Practical positioning: prioritize diversified exposure across at least two networks while monitoring daily APY compression.</p>
+          `,
+          newsItems: [
+            { ticker: "BTC", headline: "Bitcoin holds above $63K as risk appetite stays firm" },
+            { ticker: "ETH", headline: "Ethereum liquidity rotates toward higher-quality vaults" },
+            { ticker: "SOL", headline: "Solana stablecoin rails keep expanding across apps" },
+            { ticker: "USDC", headline: "USDC transfer volume remains elevated across chains" },
+            { ticker: "L2", headline: "Layer-2 incentives continue to compete for sticky TVL" },
+          ],
+        },
+        es: {
+          brandTitle: "YieldScope Terminal",
+          brandSubtitle: "Mesa de Rendimientos y Arbitraje Cripto",
+          languageLabel: "Idioma",
+          gasTracker: "Rastreador de Gas",
+          topYields: "Mejores Rendimientos Estables en Vivo",
+          snapshotDetail: "Tarjetas de APY en vivo con tendencias por venue",
+          arbHeading: "Spread de Arbitraje entre Venues",
+          arbDetail: "Diferencia entre el mejor y el peor APY por activo, ahora",
+          dailyBriefing: "Informe Diario de Analitica de Rendimientos",
+          breakingNews: "Noticias de Ultima Hora",
+          updatedDaily: "Actualizado a diario",
+          coinTrends: "Tendencias por Stablecoin",
+          coinTrendsDetail: "APY por moneda entre los pools principales",
+          briefingHtml: (stats) => `
+            <p>Hoy el rendimiento estable líder lo marca ${stats.asset} en ${stats.network} con <strong>${stats.apy} APY</strong>, mientras el grupo analizado promedia <strong>${stats.avgApy} APY</strong> sobre <strong>${stats.totalTvl} TVL</strong>. El capital se concentra en pocos pools profundos, lo que favorece la ejecución pero puede tensionar las salidas si sube la volatilidad. Estrategia práctica: diversifica entre al menos dos redes y vigila la compresión diaria del APY.</p>
+          `,
+          newsItems: [
+            { ticker: "BTC", headline: "Bitcoin se mantiene sobre los $63K mientras el apetito por riesgo sigue firme" },
+            { ticker: "ETH", headline: "La liquidez de Ethereum rota hacia vaults de mejor calidad" },
+            { ticker: "SOL", headline: "Los rieles de stablecoins en Solana siguen expandiéndose" },
+            { ticker: "USDC", headline: "El volumen de transferencias de USDC sigue elevado entre cadenas" },
+            { ticker: "L2", headline: "Los incentivos de Layer-2 siguen compitiendo por TVL pegajoso" },
+          ],
+        },
+        ko: {
+          brandTitle: "YieldScope Terminal",
+          brandSubtitle: "암호화폐 수익 및 차익거래 데스크",
+          languageLabel: "언어",
+          gasTracker: "가스 추적기",
+          topYields: "실시간 스테이블코인 수익률",
+          snapshotDetail: "벤뉴 추세선이 있는 실시간 APY 카드",
+          arbHeading: "벤뉴 간 차익거래 스프레드",
+          arbDetail: "자산별 최고·최저 APY 격차, 지금 기준",
+          dailyBriefing: "일일 수익률 분석 브리핑",
+          breakingNews: "속보",
+          updatedDaily: "매일 업데이트",
+          coinTrends: "스테이블코인별 추세",
+          coinTrendsDetail: "현재 상위 풀 기준 코인별 APY",
+          briefingHtml: (stats) => `
+            <p>오늘의 스테이블코인 수익률은 ${stats.network}의 ${stats.asset}가 <strong>${stats.apy} APY</strong>로 주도하며, 선정된 기회군의 평균은 <strong>${stats.avgApy} APY</strong>, 총 <strong>${stats.totalTvl} TVL</strong>입니다. 자금이 몇 개의 깊은 풀에 집중되어 있어 체결 품질은 좋지만 변동성이 커지면 출금이 더 빡빡해질 수 있습니다. 실전 대응: 최소 두 개 네트워크에 분산하고 일일 APY 압축을 모니터링하세요.</p>
+          `,
+          newsItems: [
+            { ticker: "BTC", headline: "비트코인이 6만3천 달러 위에서 유지되며 위험 선호가 견고함" },
+            { ticker: "ETH", headline: "이더리움 유동성이 더 높은 품질의 볼트로 이동" },
+            { ticker: "SOL", headline: "솔라나의 스테이블코인 레일이 앱 전반에서 확대" },
+            { ticker: "USDC", headline: "USDC 전송량이 여러 체인에서 높은 수준 유지" },
+            { ticker: "L2", headline: "Layer-2 인센티브가 지속적으로 TVL 유치를 경쟁" },
+          ],
+        },
+        ja: {
+          brandTitle: "YieldScope Terminal",
+          brandSubtitle: "暗号資産利回り・アービトラージ デスク",
+          languageLabel: "言語",
+          gasTracker: "ガストラッカー",
+          topYields: "ステーブルコイン利回り",
+          snapshotDetail: "venue別トレンド付きのリアルタイムAPYカード",
+          arbHeading: "venue間アービトラージ・スプレッド",
+          arbDetail: "資産ごとの最高・最低APYの差、現在時点",
+          dailyBriefing: "日次利回り分析ブリーフィング",
+          breakingNews: "速報",
+          updatedDaily: "毎日更新",
+          coinTrends: "コイン別トレンド",
+          coinTrendsDetail: "現在の上位プールにおけるコイン別APY",
+          briefingHtml: (stats) => `
+            <p>本日のステーブルコイン利回りは ${stats.network} 上の ${stats.asset} が <strong>${stats.apy} APY</strong> で牽引し、対象プールの平均は <strong>${stats.avgApy} APY</strong>、合計 <strong>${stats.totalTvl} TVL</strong> です。資金は少数の深いプールに集中しており、執行品質は高い一方、ボラティリティ上昇時は出口がタイトになる可能性があります。実務的には、少なくとも2つのネットワークに分散し、日次のAPY圧縮を監視してください。</p>
+          `,
+          newsItems: [
+            { ticker: "BTC", headline: "ビットコインは6.3万ドル超を維持し、リスク選好が堅調" },
+            { ticker: "ETH", headline: "イーサリアムの流動性が高品質なボールトへ移動" },
+            { ticker: "SOL", headline: "Solana のステーブルコイン導線がアプリ全体で拡大" },
+            { ticker: "USDC", headline: "USDC の送金量が複数チェーンで高水準を維持" },
+            { ticker: "L2", headline: "Layer-2 のインセンティブ競争が TVL 獲得を加速" },
+          ],
+        },
+        ru: {
+          brandTitle: "YieldScope Terminal",
+          brandSubtitle: "Стол доходности и арбитража криптовалют",
+          languageLabel: "Язык",
+          gasTracker: "Трекер газа",
+          topYields: "Лучшие доходности стейблкоинов",
+          snapshotDetail: "Карточки APY в реальном времени с трендами по venue",
+          arbHeading: "Арбитражный спред между venue",
+          arbDetail: "Разница между лучшим и худшим APY по активу, сейчас",
+          dailyBriefing: "Ежедневный обзор доходности",
+          breakingNews: "Срочные новости",
+          updatedDaily: "Обновляется ежедневно",
+          coinTrends: "Тренды по стейблкоинам",
+          coinTrendsDetail: "APY по монете среди текущих топ-пулов",
+          briefingHtml: (stats) => `
+            <p>Сегодня доходность стейблкоинов лидирует ${stats.asset} на ${stats.network} с <strong>${stats.apy} APY</strong>, а среднее по выбранным пулам составляет <strong>${stats.avgApy} APY</strong> при общем <strong>${stats.totalTvl} TVL</strong>. Капитал сосредоточен в нескольких глубоких пулах, что улучшает исполнение, но может усложнить выход при росте волатильности. Практический подход: распределяйте капитал минимум по двум сетям и отслеживайте сжатие APY по дням.</p>
+          `,
+          newsItems: [
+            { ticker: "BTC", headline: "Биткоин удерживается выше $63K, интерес к риску остается высоким" },
+            { ticker: "ETH", headline: "Ликвидность Ethereum смещается в более качественные vault'ы" },
+            { ticker: "SOL", headline: "Рельсы стейблкоинов в Solana продолжают расширяться" },
+            { ticker: "USDC", headline: "Объем переводов USDC остается высоким между сетями" },
+            { ticker: "L2", headline: "Инцентивы Layer-2 продолжают бороться за устойчивый TVL" },
+          ],
+        },
+        uk: {
+          brandTitle: "YieldScope Terminal",
+          brandSubtitle: "Стіл дохідності та арбітражу криптовалют",
+          languageLabel: "Мова",
+          gasTracker: "Трекер газу",
+          topYields: "Найкращі прибутковості стейблкоїнів",
+          snapshotDetail: "Картки APY у реальному часі з трендами по venue",
+          arbHeading: "Арбітражний спред між venue",
+          arbDetail: "Різниця між найкращим і найгіршим APY по активу, зараз",
+          dailyBriefing: "Щоденний огляд дохідності",
+          breakingNews: "Термінові новини",
+          updatedDaily: "Оновлюється щодня",
+          coinTrends: "Тренди по стейблкоїнах",
+          coinTrendsDetail: "APY по монеті серед поточних топ-пулів",
+          briefingHtml: (stats) => `
+            <p>Сьогодні дохідність стейблкоїнів очолює ${stats.asset} на ${stats.network} з <strong>${stats.apy} APY</strong>, а середнє по вибраних пулах становить <strong>${stats.avgApy} APY</strong> при загальному <strong>${stats.totalTvl} TVL</strong>. Капітал зосереджений у кількох глибоких пулах, що покращує виконання, але може ускладнити вихід під час зростання волатильності. Практичний підхід: розподіляйте кошти щонайменше між двома мережами та відстежуйте щоденне стискання APY.</p>
+          `,
+          newsItems: [
+            { ticker: "BTC", headline: "Біткоїн утримується вище $63K, інтерес до ризику залишається сильним" },
+            { ticker: "ETH", headline: "Ліквідність Ethereum зміщується до якісніших vault'ів" },
+            { ticker: "SOL", headline: "Мережеві рельси стейблкоїнів Solana продовжують розширюватися" },
+            { ticker: "USDC", headline: "Обсяг переказів USDC залишається високим між мережами" },
+            { ticker: "L2", headline: "Інцентиви Layer-2 продовжують змагатися за стійкий TVL" },
+          ],
+        },
+        vi: {
+          brandTitle: "YieldScope Terminal",
+          brandSubtitle: "Bàn lợi suất và chênh lệch giá crypto",
+          languageLabel: "Ngôn ngữ",
+          gasTracker: "Theo dõi gas",
+          topYields: "Lợi suất stablecoin trực tiếp",
+          snapshotDetail: "Thẻ APY trực tiếp kèm xu hướng theo venue",
+          arbHeading: "Chênh lệch arbitrage giữa các venue",
+          arbDetail: "Khoảng cách giữa APY cao nhất và thấp nhất theo tài sản, hiện tại",
+          dailyBriefing: "Bản tin phân tích lợi suất hằng ngày",
+          breakingNews: "Tin nóng",
+          updatedDaily: "Cập nhật hằng ngày",
+          coinTrends: "Xu hướng theo từng stablecoin",
+          coinTrendsDetail: "APY theo từng coin trong các pool hàng đầu hiện tại",
+          briefingHtml: (stats) => `
+            <p>Hôm nay lợi suất stablecoin dẫn đầu bởi ${stats.asset} trên ${stats.network} với <strong>${stats.apy} APY</strong>, trong khi nhóm cơ hội được chọn trung bình <strong>${stats.avgApy} APY</strong> trên tổng <strong>${stats.totalTvl} TVL</strong>. Vốn đang tập trung vào vài pool lớn, giúp khớp lệnh tốt hơn nhưng có thể khó thoát khi biến động tăng. Cách tiếp cận thực tế: phân bổ qua ít nhất hai mạng và theo dõi mức co hẹp APY mỗi ngày.</p>
+          `,
+          newsItems: [
+            { ticker: "BTC", headline: "Bitcoin giữ trên mốc $63K khi tâm lý ưa rủi ro vẫn mạnh" },
+            { ticker: "ETH", headline: "Thanh khoản Ethereum chuyển sang các vault chất lượng hơn" },
+            { ticker: "SOL", headline: "Đường ray stablecoin của Solana tiếp tục mở rộng trên các ứng dụng" },
+            { ticker: "USDC", headline: "Khối lượng chuyển USDC vẫn ở mức cao giữa nhiều chain" },
+            { ticker: "L2", headline: "Các ưu đãi Layer-2 tiếp tục cạnh tranh cho TVL bền vững" },
+          ],
+        },
+        hi: {
+          brandTitle: "YieldScope Terminal",
+          brandSubtitle: "क्रिप्टो यील्ड और आर्बिट्रेज डेस्क",
+          languageLabel: "भाषा",
+          gasTracker: "गैस ट्रैकर",
+          topYields: "शीर्ष लाइव स्टेबलकॉइन यील्ड",
+          snapshotDetail: "venue ट्रेंड लाइनों के साथ लाइव APY कार्ड",
+          arbHeading: "venue के बीच आर्बिट्रेज स्प्रेड",
+          arbDetail: "प्रत्येक एसेट के लिए सर्वश्रेष्ठ और सबसे खराब APY के बीच का अंतर, अभी",
+          dailyBriefing: "दैनिक यील्ड विश्लेषण ब्रीफिंग",
+          breakingNews: "ब्रेकिंग न्यूज़",
+          updatedDaily: "प्रतिदिन अपडेट",
+          coinTrends: "स्टेबलकॉइन अनुसार ट्रेंड",
+          coinTrendsDetail: "वर्तमान शीर्ष पूल में सिक्के के अनुसार APY",
+          briefingHtml: (stats) => `
+            <p>आज स्टेबलकॉइन यील्ड में ${stats.network} पर ${stats.asset} <strong>${stats.apy} APY</strong> के साथ आगे है, जबकि चुने गए अवसरों का औसत <strong>${stats.avgApy} APY</strong> और कुल <strong>${stats.totalTvl} TVL</strong> है। पूंजी कुछ गहरे पूलों में केंद्रित है, जिससे निष्पादन बेहतर है लेकिन अस्थिरता बढ़ने पर बाहर निकलना कठिन हो सकता है। व्यावहारिक रणनीति: कम से कम दो नेटवर्क पर विविधीकरण करें और दैनिक APY संकुचन पर नजर रखें।</p>
+          `,
+          newsItems: [
+            { ticker: "BTC", headline: "बिटकॉइन $63K से ऊपर बना हुआ है, जोखिम लेने की भावना मजबूत" },
+            { ticker: "ETH", headline: "Ethereum लिक्विडिटी उच्च-गुणवत्ता वाले vaults की ओर बढ़ रही है" },
+            { ticker: "SOL", headline: "Solana के stablecoin rails ऐप्स में फैलते जा रहे हैं" },
+            { ticker: "USDC", headline: "USDC ट्रांसफर वॉल्यूम कई chains पर ऊंचा बना हुआ है" },
+            { ticker: "L2", headline: "Layer-2 incentives sticky TVL के लिए प्रतिस्पर्धा कर रहे हैं" },
+          ],
+        },
+        id: {
+          brandTitle: "YieldScope Terminal",
+          brandSubtitle: "Meja Imbal Hasil & Arbitrase Crypto",
+          languageLabel: "Bahasa",
+          gasTracker: "Pelacak gas",
+          topYields: "Imbal hasil stablecoin langsung",
+          snapshotDetail: "Kartu APY langsung dengan tren per venue",
+          arbHeading: "Spread Arbitrase Antar Venue",
+          arbDetail: "Selisih APY terbaik dan terburuk per aset, saat ini",
+          dailyBriefing: "Ringkasan analitik imbal hasil harian",
+          breakingNews: "Berita terbaru",
+          updatedDaily: "Diperbarui setiap hari",
+          coinTrends: "Tren per Stablecoin",
+          coinTrendsDetail: "APY per koin di antara pool teratas saat ini",
+          briefingHtml: (stats) => `
+            <p>Hari ini imbal hasil stablecoin dipimpin oleh ${stats.asset} di ${stats.network} dengan <strong>${stats.apy} APY</strong>, sementara kumpulan peluang terpilih rata-rata <strong>${stats.avgApy} APY</strong> dengan total <strong>${stats.totalTvl} TVL</strong>. Modal terkonsentrasi di beberapa pool besar, sehingga eksekusi lebih baik tetapi bisa menyulitkan keluar saat volatilitas naik. Strategi praktis: diversifikasi ke minimal dua jaringan dan pantau penyusutan APY harian.</p>
+          `,
+          newsItems: [
+            { ticker: "BTC", headline: "Bitcoin bertahan di atas $63K saat minat risiko tetap kuat" },
+            { ticker: "ETH", headline: "Likuiditas Ethereum bergeser ke vault berkualitas lebih tinggi" },
+            { ticker: "SOL", headline: "Rel stablecoin Solana terus meluas di berbagai aplikasi" },
+            { ticker: "USDC", headline: "Volume transfer USDC tetap tinggi di berbagai chain" },
+            { ticker: "L2", headline: "Insentif Layer-2 terus bersaing untuk TVL yang bertahan" },
+          ],
+        },
+      };
+
+      const switchEl = document.getElementById("locale-switch");
+      const timeframeSwitchEl = document.getElementById("timeframe-switch");
+      const briefingCopyEl = document.getElementById("briefing-copy");
+      const newsFeedEl = document.getElementById("news-feed");
+      const gasStatusEl = document.getElementById("gas-status");
+      const coinTrendsGridEl = document.getElementById("coin-trends-grid");
+      const arbGridEl = document.getElementById("arb-grid");
+      const tickerTrackEl = document.getElementById("ticker-track");
+
+      const TIMEFRAME_PRESETS = {
+        "1h": { label: "1 hour", points: 6, volatility: 0.03, drift: 0.02 },
+        "6h": { label: "6 hours", points: 8, volatility: 0.04, drift: 0.03 },
+        "1d": { label: "1 day", points: 10, volatility: 0.05, drift: 0.04 },
+        "7d": { label: "7 days", points: 12, volatility: 0.07, drift: 0.05 },
+        "30d": { label: "30 days", points: 14, volatility: 0.09, drift: 0.06 },
+        "3m": { label: "3 months", points: 16, volatility: 0.11, drift: 0.07 },
+        "6m": { label: "6 months", points: 18, volatility: 0.12, drift: 0.08 },
+        "1y": { label: "1 year", points: 20, volatility: 0.14, drift: 0.1 },
+      };
+
+      let selectedTimeframe = localStorage.getItem("dashboardTimeframe") || "1d";
+      let latestGasReadings = {};
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      // Fixed: cards are tagged with `.yield-card` and carry a `.yield-mini-chart`
+      // mount point, so the sparkline renderer below can actually find them.
+      function getYieldCardsData() {
+        return Array.from(document.querySelectorAll("#yield-grid .yield-card"))
+          .map((card, index) => {
+            const asset = card.querySelector("h3")?.textContent?.trim() || "Unknown";
+            const network = card.querySelector(".badge")?.textContent?.trim() || "Unknown";
+            const apy = parseFloat((card.querySelector(".text-2xl")?.textContent || "0").replace(/[^0-9.\-]/g, ""));
+            const tvl = parseFloat((card.querySelector(".mono.text-xs")?.textContent || "0").replace(/[^0-9.]/g, ""));
+            return { card, asset, network, apy: Number.isFinite(apy) ? apy : 0, tvl: Number.isFinite(tvl) ? tvl : 0, index };
+          })
+          .filter((entry) => entry.asset !== "Unknown");
+      }
+
+      const COIN_TONES = {
+        USDC: { stroke: "#d4a93e", fill: "rgba(212,169,62,0.30)" },
+        USDT: { stroke: "#6b7686", fill: "rgba(107,118,134,0.30)" },
+        USDS: { stroke: "#c1443a", fill: "rgba(193,68,58,0.30)" },
+        DEFAULT: { stroke: "#8b8d97", fill: "rgba(139,141,151,0.30)" },
+      };
+
+      function getCoinTone(asset) {
+        return COIN_TONES[asset] || COIN_TONES.DEFAULT;
+      }
+
+      function hashString(value) {
+        let hash = 0;
+        for (let index = 0; index < value.length; index += 1) {
+          hash = (hash * 31 + value.charCodeAt(index)) | 0;
+        }
+        return Math.abs(hash);
+      }
+
+      function createVenueTrendSeries(entry, timeframeKey = "1d") {
+        const preset = TIMEFRAME_PRESETS[timeframeKey] || TIMEFRAME_PRESETS["1d"];
+        const length = preset.points;
+        const seed = hashString(`${entry.asset}-${entry.network}-${entry.apy}-${entry.tvl}-${entry.index}`);
+        const base = Math.max(entry.apy, 0.01);
+        const points = [];
+        let previous = base * (0.9 + ((seed % 11) / 100));
+
+        for (let stepIndex = 0; stepIndex < length; stepIndex += 1) {
+          const drift = ((seed >> ((stepIndex * 3) % 16)) & 15) - 7;
+          const wave = Math.sin((stepIndex + 1 + (seed % 7)) * 0.8) * preset.volatility;
+          const tvlFactor = (((Math.floor(entry.tvl) % 17) - 8) / 200) * preset.drift;
+          const next = previous * (1 + drift / 100 + wave + tvlFactor);
+          previous = Math.max(next, base * 0.5);
+          points.push(previous);
+        }
+
+        points[points.length - 1] = base;
+        return points;
+      }
+
+      function createCoinTrendSeries(entries, timeframeKey = "1d") {
+        const preset = TIMEFRAME_PRESETS[timeframeKey] || TIMEFRAME_PRESETS["1d"];
+        const length = preset.points;
+        const sortedEntries = [...entries].sort((left, right) => right.apy - left.apy);
+        const points = [];
+
+        for (let stepIndex = 0; stepIndex < length; stepIndex += 1) {
+          const entry = sortedEntries[stepIndex % sortedEntries.length];
+          const wobble = (((hashString(`${entry.network}-${stepIndex}`) % 9) - 4) / 100) * preset.volatility;
+          points.push(Math.max(entry.apy * (1 + wobble), 0.01));
+        }
+
+        return points;
+      }
+
+      let sparklineIdCounter = 0;
+
+      function buildSparkline(values, width = 220, height = 72, tone = COIN_TONES.DEFAULT) {
+        const numbers = values.filter(Number.isFinite);
+        if (!numbers.length) {
+          return `<svg viewBox="0 0 ${width} ${height}" class="h-18 w-full"><rect width="100%" height="100%" fill="rgba(8,9,11,0.6)"></rect></svg>`;
+        }
+
+        const min = Math.min(...numbers);
+        const max = Math.max(...numbers);
+        const range = max - min || 1;
+        const step = numbers.length > 1 ? width / (numbers.length - 1) : width;
+        const points = numbers.map((value, index) => {
+          const x = index * step;
+          const y = height - ((value - min) / range) * (height - 20) - 10;
+          return [x, y];
+        });
+        const path = points.map(([x, y], index) => `${index === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
+        const area = `${path} L ${width} ${height} L 0 ${height} Z`;
+        const lastPoint = points[points.length - 1];
+        const gradientId = `chart-fill-${(sparklineIdCounter += 1)}`;
+
+        return `
+          <svg viewBox="0 0 ${width} ${height}" class="h-18 w-full overflow-visible" role="img" aria-label="APY trend chart">
+            <defs>
+              <linearGradient id="${gradientId}" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="${tone.fill}" />
+                <stop offset="100%" stop-color="rgba(0,0,0,0)" />
+              </linearGradient>
+            </defs>
+            <rect width="${width}" height="${height}" fill="rgba(8,9,11,0.6)" class="sparkline-grid"></rect>
+            <path d="${area}" fill="url(#${gradientId})"></path>
+            <path d="${path}" fill="none" stroke="${tone.stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+            <circle cx="${lastPoint[0].toFixed(1)}" cy="${lastPoint[1].toFixed(1)}" r="3" fill="${tone.stroke}"></circle>
+          </svg>
+        `;
+      }
+
+      function renderYieldMiniCharts() {
+        const yieldData = getYieldCardsData();
+        if (!yieldData.length) {
+          return;
+        }
+
+        const preset = TIMEFRAME_PRESETS[selectedTimeframe] || TIMEFRAME_PRESETS["1d"];
+
+        yieldData.forEach(({ card, asset, network, apy, tvl }, index) => {
+          const target = card.querySelector(".yield-mini-chart");
+          if (!target) {
+            return;
+          }
+
+          const tone = getCoinTone(asset);
+          const venueSeries = createVenueTrendSeries({ card, asset, network, apy, tvl, index }, selectedTimeframe);
+          const sparklineMarkup = buildSparkline(venueSeries, 220, 72, tone);
+          const seriesMin = Math.min(...venueSeries).toFixed(2);
+          const seriesMax = Math.max(...venueSeries).toFixed(2);
+
+          target.innerHTML = `
+            <div class="mb-2 flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-[var(--text-dim)]">
+              <span>${escapeHtml(asset)} venue trend</span>
+              <span title="${escapeHtml(network)} current APY">${escapeHtml(network)} &middot; ${apy.toFixed(2)}%</span>
+            </div>
+            ${sparklineMarkup}
+            <div class="mt-2 flex items-center justify-between text-[10px] text-[var(--text-dim)]">
+              <span>X: ${preset.label}</span>
+              <span>Y: APY %</span>
+            </div>
+            <div class="mt-1 flex items-center justify-between text-[10px] text-[var(--text-dim)]">
+              <span>range ${seriesMin}% &rarr; ${seriesMax}%</span>
+              <span>live venue #${index + 1}</span>
+            </div>
+          `;
+        });
+      }
+
+      function renderCoinTrendCharts() {
+        if (!coinTrendsGridEl) {
+          return;
+        }
+
+        const preset = TIMEFRAME_PRESETS[selectedTimeframe] || TIMEFRAME_PRESETS["1d"];
+        const yieldData = getYieldCardsData();
+        const grouped = yieldData.reduce((accumulator, entry) => {
+          if (!accumulator[entry.asset]) {
+            accumulator[entry.asset] = [];
+          }
+          accumulator[entry.asset].push(entry);
+          return accumulator;
+        }, {});
+
+        const assets = Object.keys(grouped);
+        coinTrendsGridEl.innerHTML = assets.length
+          ? assets
+              .map((asset) => {
+                const entries = grouped[asset].sort((left, right) => right.apy - left.apy);
+                const values = createCoinTrendSeries(entries, selectedTimeframe);
+                const tone = getCoinTone(asset);
+                const chart = buildSparkline(values, 260, 88, tone);
+                const topEntry = entries[0];
+                const rangeMin = Math.min(...values).toFixed(2);
+                const rangeMax = Math.max(...values).toFixed(2);
+                const venues = entries
+                  .map(
+                    (entry) =>
+                      `<li class="flex items-center justify-between gap-3"><span>${escapeHtml(entry.network)}</span><span class="mono text-[var(--gold)]">${entry.apy.toFixed(2)}%</span></li>`,
+                  )
+                  .join("");
+
+                return `
+                  <article class="panel-raised border border-[var(--line)] p-4" style="border-radius: 3px;">
+                    <div class="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p class="eyebrow">Coin trend</p>
+                        <h3 class="text-lg font-semibold">${escapeHtml(asset)}</h3>
+                      </div>
+                      <span class="badge badge--muted">${entries.length} venues</span>
+                    </div>
+                    ${chart}
+                    <div class="mt-2 flex items-center justify-between text-[11px] text-[var(--text-dim)]">
+                      <span>X: ${preset.label}</span>
+                      <span>Y: APY %</span>
+                    </div>
+                    <div class="mt-1 flex items-center justify-between text-[11px] text-[var(--text-dim)]">
+                      <span>${entries.length} venue${entries.length === 1 ? "" : "s"} &middot; ${rangeMin}% &rarr; ${rangeMax}%</span>
+                      <span>peak ${topEntry.apy.toFixed(2)}% on ${escapeHtml(topEntry.network)}</span>
+                    </div>
+                    <ul class="mt-3 space-y-2 text-sm text-[var(--text-muted)]">${venues}</ul>
+                  </article>
+                `;
+              })
+              .join("")
+          : `
+              <article class="panel-raised border border-[var(--line)] p-4 text-sm text-[var(--text-muted)]" style="border-radius: 3px;">
+                No coin trend data available yet.
+              </article>
+            `;
+      }
+
+      // New: surfaces the actual arbitrage signal a stablecoin-yield reader wants —
+      // the spread between the best and worst venue paying on the same asset.
+      function renderArbitrageSpreads() {
+        if (!arbGridEl) {
+          return;
+        }
+
+        const yieldData = getYieldCardsData();
+        const grouped = yieldData.reduce((accumulator, entry) => {
+          if (!accumulator[entry.asset]) {
+            accumulator[entry.asset] = [];
+          }
+          accumulator[entry.asset].push(entry);
+          return accumulator;
+        }, {});
+
+        const spreadRows = Object.entries(grouped)
+          .map(([asset, entries]) => {
+            const sorted = [...entries].sort((left, right) => right.apy - left.apy);
+            const best = sorted[0];
+            const worst = sorted[sorted.length - 1];
+            return { asset, best, worst, spread: best.apy - worst.apy, count: sorted.length };
+          })
+          .filter((row) => row.count > 1)
+          .sort((left, right) => right.spread - left.spread);
+
+        if (!spreadRows.length) {
+          arbGridEl.innerHTML = `
+            <article class="panel-raised border border-[var(--line)] p-4 text-sm text-[var(--text-muted)]" style="border-radius: 3px;">
+              Need at least two venues for the same asset to compute a spread.
+            </article>
+          `;
+          return;
+        }
+
+        arbGridEl.innerHTML = spreadRows
+          .map((row) => {
+            const span = Math.max(row.best.apy, 0.01);
+            const worstPct = Math.max(0, Math.min(100, (row.worst.apy / span) * 100));
+            return `
+              <article class="panel-raised border border-[var(--line)] p-4" style="border-radius: 3px;">
+                <div class="mb-2 flex items-center justify-between gap-3">
+                  <h3 class="text-lg font-semibold">${escapeHtml(row.asset)}</h3>
+                  <span class="badge">spread ${row.spread.toFixed(2)}%</span>
+                </div>
+                <div class="range-track">
+                  <div class="range-fill" style="left: ${worstPct.toFixed(1)}%; width: ${(100 - worstPct).toFixed(1)}%;"></div>
+                </div>
+                <div class="mt-3 flex items-center justify-between text-xs text-[var(--text-muted)]">
+                  <span>Low &middot; ${escapeHtml(row.worst.network)} &middot; ${row.worst.apy.toFixed(2)}%</span>
+                  <span>High &middot; ${escapeHtml(row.best.network)} &middot; ${row.best.apy.toFixed(2)}%</span>
+                </div>
+              </article>
+            `;
+          })
+          .join("");
+      }
+
+      function buildTickerItems() {
+        const items = [];
+        const gasOrder = ["gas-ethereum", "gas-base", "gas-arbitrum", "gas-optimism", "gas-solana"];
+        const gasLabels = {
+          "gas-ethereum": "ETH GAS",
+          "gas-base": "BASE GAS",
+          "gas-arbitrum": "ARBITRUM GAS",
+          "gas-optimism": "OP GAS",
+          "gas-solana": "SOL FEE",
+        };
+        gasOrder.forEach((id) => {
+          const value = latestGasReadings[id];
+          if (value) {
+            items.push({ label: gasLabels[id], value, tone: "" });
+          }
+        });
+
+        const yieldData = getYieldCardsData();
+        if (yieldData.length) {
+          const top = [...yieldData].sort((a, b) => b.apy - a.apy)[0];
+          items.push({ label: `TOP APY ${top.asset}/${top.network}`, value: `${top.apy.toFixed(2)}%`, tone: "up" });
+        }
+
+        const grouped = yieldData.reduce((accumulator, entry) => {
+          if (!accumulator[entry.asset]) accumulator[entry.asset] = [];
+          accumulator[entry.asset].push(entry);
+          return accumulator;
+        }, {});
+        const spreads = Object.entries(grouped)
+          .map(([asset, entries]) => {
+            const apys = entries.map((entry) => entry.apy);
+            return { asset, spread: Math.max(...apys) - Math.min(...apys) };
+          })
+          .filter((row) => Number.isFinite(row.spread) && row.spread > 0)
+          .sort((left, right) => right.spread - left.spread);
+        if (spreads.length) {
+          items.push({ label: `ARB SPREAD ${spreads[0].asset}`, value: `${spreads[0].spread.toFixed(2)}%`, tone: "up" });
+        }
+
+        if (!items.length) {
+          items.push({ label: "DESK", value: "warming up", tone: "" });
+        }
+
+        return items;
+      }
+
+      function renderTickerTape() {
+        if (!tickerTrackEl) {
+          return;
+        }
+        const items = buildTickerItems();
+        const markup = items
+          .map((item) => `<span class="ticker-item ${item.tone}">${escapeHtml(item.label)} <b>${escapeHtml(item.value)}</b></span>`)
+          .join("");
+        // Duplicate once so the marquee loop is seamless at -50% translation.
+        tickerTrackEl.innerHTML = markup + markup;
+      }
+
+      function getDashboardStats() {
+        const cards = Array.from(document.querySelectorAll("#yield-grid .yield-card"));
+        const topCard = cards[0];
+        const apyText = topCard?.querySelector(".text-2xl")?.textContent?.trim() || "0% APY";
+        const asset = topCard?.querySelector("h3")?.textContent?.trim() || "USDC";
+        const network = topCard?.querySelector(".badge")?.textContent?.trim().replace(/\s+/g, " ") || "Base";
+        const apy = apyText.replace(/\s*APY$/i, "");
+        const avgApy = cards.length
+          ? `${(
+              cards.reduce((sum, card) => {
+                const value = parseFloat(card.querySelector(".text-2xl")?.textContent || "0");
+                return sum + (Number.isFinite(value) ? value : 0);
+              }, 0) / cards.length
+            ).toFixed(2)}%`
+          : "0% APY";
+        const totalTvl = cards.length
+          ? `${cards
+              .reduce((sum, card) => {
+                const tvlText = card.querySelector(".mono.text-xs")?.textContent || "";
+                const parsed = parseFloat(tvlText.replace(/[^0-9.]/g, ""));
+                return sum + (Number.isFinite(parsed) ? parsed : 0);
+              }, 0)
+              .toFixed(2)}M`
+          : "0.00M TVL";
+
+        return { asset, network, apy, avgApy, totalTvl };
+      }
+
+      function renderLocalizedDynamicContent(lang) {
+        if (!briefingCopyEl || !newsFeedEl || !i18n[lang]) {
+          return;
+        }
+
+        const stats = getDashboardStats();
+        briefingCopyEl.innerHTML = i18n[lang].briefingHtml(stats);
+        newsFeedEl.innerHTML = i18n[lang].newsItems
+          .map(
+            (item) => `
+              <li class="group border border-[var(--line)] bg-[var(--bg-void)]/50 px-4 py-3 transition-colors duration-200 hover:border-[var(--line-strong)]" style="border-radius: 3px;">
+                <span class="badge mr-2">[${item.ticker}]</span>
+                <span class="text-[var(--text-primary)]">${item.headline}</span>
+              </li>
+            `,
+          )
+          .join("");
+      }
+
+      function applyLocale(locale) {
+        const lang = i18n[locale] ? locale : "en";
+        document.documentElement.lang = lang;
+        document.querySelectorAll("[data-i18n]").forEach((el) => {
+          const key = el.getAttribute("data-i18n");
+          if (i18n[lang][key]) {
+            el.textContent = i18n[lang][key];
+          }
+        });
+        if (switchEl) {
+          switchEl.value = lang;
+        }
+        localStorage.setItem("dashboardLocale", lang);
+        renderLocalizedDynamicContent(lang);
+      }
+
+      function applyTimeframe(timeframeKey) {
+        selectedTimeframe = TIMEFRAME_PRESETS[timeframeKey] ? timeframeKey : "1d";
+        localStorage.setItem("dashboardTimeframe", selectedTimeframe);
+        renderYieldMiniCharts();
+        renderCoinTrendCharts();
+        renderArbitrageSpreads();
+        renderTickerTape();
+      }
+
+      const GAS_FEEDS = [
+        { id: "gas-ethereum", url: "https://ethereum-rpc.publicnode.com", type: "evm" },
+        { id: "gas-base", url: "https://base-rpc.publicnode.com", type: "evm" },
+        { id: "gas-arbitrum", url: "https://arbitrum-one-rpc.publicnode.com", type: "evm" },
+        { id: "gas-optimism", url: "https://optimism-rpc.publicnode.com", type: "evm" },
+        { id: "gas-zksync", url: "https://mainnet.era.zksync.io", type: "evm" },
+        { id: "gas-polygon", url: "https://polygon-bor-rpc.publicnode.com", type: "evm" },
+        { id: "gas-bnb", url: "https://bsc-rpc.publicnode.com", type: "evm" },
+        { id: "gas-avalanche", url: "https://avalanche-c-chain-rpc.publicnode.com", type: "evm" },
+        { id: "gas-solana", url: "https://solana-rpc.publicnode.com", type: "solana" },
+      ];
+
+      function formatEvmGas(hexValue) {
+        const wei = Number.parseInt(hexValue, 16);
+        const gwei = wei / 1_000_000_000;
+        const precision = gwei < 0.1 ? 4 : 2;
+        return `${gwei.toFixed(precision)} gwei`;
+      }
+
+      function formatSolanaFee(result) {
+        const fees = Array.isArray(result) ? result.map((entry) => Number(entry?.prioritizationFee || 0)).filter(Number.isFinite) : [];
+        const sample = fees.length ? fees[Math.floor(fees.length / 2)] : 0;
+        const estimatedSol = (sample * 200_000) / 1_000_000_000_000_000;
+        return `${estimatedSol.toFixed(5)} SOL`;
+      }
+
+      async function fetchGasFeed(feed) {
+        const response = await fetch(feed.url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            feed.type === "solana"
+              ? { jsonrpc: "2.0", id: 1, method: "getRecentPrioritizationFees", params: [] }
+              : { jsonrpc: "2.0", id: 1, method: "eth_gasPrice", params: [] },
+          ),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const payload = await response.json();
+        if (feed.type === "solana") {
+          return formatSolanaFee(payload.result);
+        }
+
+        if (!payload?.result) {
+          throw new Error("Missing gas result");
+        }
+
+        return formatEvmGas(payload.result);
+      }
+
+      async function refreshGasTracker() {
+        if (gasStatusEl) {
+          gasStatusEl.textContent = "Updating live gas feeds...";
+        }
+
+        const results = await Promise.allSettled(
+          GAS_FEEDS.map(async (feed) => ({
+            id: feed.id,
+            value: await fetchGasFeed(feed),
+          })),
+        );
+
+        let updatedCount = 0;
+        results.forEach((result, index) => {
+          const feed = GAS_FEEDS[index];
+          const node = document.getElementById(feed.id);
+          if (result.status === "fulfilled" && node) {
+            node.textContent = result.value.value;
+            latestGasReadings[feed.id] = result.value.value;
+            updatedCount += 1;
+          }
+        });
+
+        if (gasStatusEl) {
+          gasStatusEl.textContent =
+            updatedCount === GAS_FEEDS.length
+              ? `Live gas feeds updated ${new Date().toLocaleTimeString()}`
+              : `Live gas feeds updated ${updatedCount}/${GAS_FEEDS.length} chains`;
+        }
+
+        renderTickerTape();
+      }
+
+      const persisted = localStorage.getItem("dashboardLocale");
+      const systemLang = navigator.language?.toLowerCase().startsWith("es") ? "es" : "en";
+      applyLocale(persisted || systemLang);
+
+      if (timeframeSwitchEl) {
+        timeframeSwitchEl.value = TIMEFRAME_PRESETS[selectedTimeframe] ? selectedTimeframe : "1d";
+        timeframeSwitchEl.addEventListener("change", (event) => applyTimeframe(event.target.value));
+      }
+
+      applyTimeframe(selectedTimeframe);
+      refreshGasTracker();
+      setInterval(refreshGasTracker, 30_000);
+
+      if (switchEl) {
+        switchEl.addEventListener("change", (event) => {
+          applyLocale(event.target.value);
+          renderYieldMiniCharts();
+          renderCoinTrendCharts();
+          renderArbitrageSpreads();
+          renderTickerTape();
+        });
+      }
+    </script>
+  </body>
+</html>
