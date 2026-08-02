@@ -16,6 +16,10 @@ NEWS_RSS_URL = "https://www.coindesk.com/arc/outboundfeeds/rss/"
 
 STABLE_ASSETS = {"USDC", "USDT", "USDS"}
 MIN_TVL_USD = 1_000_000
+# DeFiLlama occasionally reports pools with absurd, non-representative APY
+# (temporary incentive spikes, bugged pools, etc). Anything above this is
+# treated as noise rather than a real yield opportunity.
+MAX_SANE_APY = 1_000.0
 TOP_POOL_COUNT = 5
 TOP_NEWS_COUNT = 5
 
@@ -75,6 +79,9 @@ def fetch_top_stablecoin_yields(
         if tvl is None or apy is None or tvl <= MIN_TVL_USD:
             continue
 
+        if apy <= 0 or apy > MAX_SANE_APY:
+            continue
+
         chain = str(pool.get("chain", "Unknown")).strip() or "Unknown"
         project = str(pool.get("project", "Unknown")).strip() or "Unknown"
         filtered.append(
@@ -87,11 +94,50 @@ def fetch_top_stablecoin_yields(
             )
         )
 
-    ranked = sorted(filtered, key=lambda p: p.apy, reverse=True)[:top_n]
+    ranked = _select_diversified_pools(filtered, top_n)
     if not ranked:
         return [], "No stablecoin pools met the filter constraints"
 
     return ranked, None
+
+
+def _select_diversified_pools(pools: list[PoolMetric], top_n: int) -> list[PoolMetric]:
+    """
+    Pick up to top_n pools while giving every stablecoin asset a fair shot.
+
+    A flat "sort everything by APY, take the top N" tends to be swept
+    entirely by whichever asset (usually USDC) has the most >$1M-TVL pools
+    on-chain, since it simply has more chances to land a high APY. Instead,
+    this round-robins across assets — best pool from each asset first, then
+    second-best from each, and so on — so USDT, USDS, etc. still surface
+    when they're competitive, not just when they happen to top the whole list.
+    """
+    by_asset: dict[str, list[PoolMetric]] = {}
+    for pool in pools:
+        by_asset.setdefault(pool.asset, []).append(pool)
+
+    for asset_pools in by_asset.values():
+        asset_pools.sort(key=lambda p: p.apy, reverse=True)
+
+    # Visit assets in order of their own best APY, so a strong asset's top
+    # pool still outranks a weak asset's top pool on the first pass.
+    assets_by_strength = sorted(
+        by_asset.keys(), key=lambda asset: by_asset[asset][0].apy, reverse=True
+    )
+
+    selected: list[PoolMetric] = []
+    round_index = 0
+    max_round = max((len(bucket) for bucket in by_asset.values()), default=0)
+    while len(selected) < top_n and round_index < max_round:
+        for asset in assets_by_strength:
+            if len(selected) >= top_n:
+                break
+            bucket = by_asset[asset]
+            if round_index < len(bucket):
+                selected.append(bucket[round_index])
+        round_index += 1
+
+    return selected
 
 
 def normalize_asset_symbol(symbol: str) -> str:
@@ -255,9 +301,9 @@ def render_yield_cards_html(pools: list[PoolMetric], error: str | None) -> str:
     if not pools:
         reason = html.escape(error or "Yield data unavailable")
         return (
-            '<article class="rounded-xl border border-rose-400/30 bg-rose-500/10 p-5 card-glow">'
-            '<h3 class="text-lg font-semibold text-rose-200">Yield API status</h3>'
-            f'<p class="mt-2 text-sm text-rose-100">{reason}</p>'
+            '<article class="panel border-[var(--red)]/40 p-5">'
+            '<h3 class="text-lg font-semibold" style="color: var(--red)">Yield API status</h3>'
+            f'<p class="mt-2 text-sm text-[var(--text-muted)]">{reason}</p>'
             '</article>'
         )
 
@@ -266,16 +312,17 @@ def render_yield_cards_html(pools: list[PoolMetric], error: str | None) -> str:
         delay = 0.05 * (i + 1)
         cards.append(
             f'''
-<article class="fade-up rounded-xl border border-[var(--line-soft)] bg-[var(--bg-secondary)] p-5 card-glow transition-all duration-300 hover:-translate-y-1 hover:border-emerald-300/40 hover:shadow-[0_8px_32px_rgba(147,255,63,0.12)]" style="animation-delay: {delay:.2f}s">
+<article class="yield-card fade-up panel p-5" style="animation-delay: {delay:.2f}s">
   <div class="mb-3 flex items-center justify-between">
-    <span class="inline-flex items-center gap-2 rounded-full border border-cyan-300/40 bg-cyan-300/10 px-3 py-1 text-xs text-cyan-300">
-      <span class="h-2 w-2 rounded-full bg-cyan-300"></span>
+    <span class="badge">
+      <span class="dot"></span>
       {html.escape(pool.network)}
     </span>
     <p class="mono text-xs text-[var(--text-muted)]">TVL: ${pool.tvl_usd / 1_000_000:.2f}M</p>
   </div>
   <h3 class="text-lg font-semibold">{html.escape(pool.asset)}</h3>
-  <p class="mono mt-2 text-2xl font-bold text-[var(--volt-green)]">{pool.apy:.2f}% APY</p>
+  <p class="mono mt-2 text-2xl font-bold text-[var(--gold)]">{pool.apy:.2f}% APY</p>
+  <div class="yield-mini-chart mt-3"></div>
 </article>
 '''.strip()
         )
@@ -283,6 +330,11 @@ def render_yield_cards_html(pools: list[PoolMetric], error: str | None) -> str:
 
 
 def render_briefing_html(pools: list[PoolMetric], llm_prompt_template: str, error: str | None) -> str:
+    # Note: llm_prompt_template is intentionally not rendered to the page.
+    # Shipping the raw analyst prompt to end users doesn't help them and
+    # reads as an internal debugging artifact left in a production page.
+    del llm_prompt_template
+
     if not pools:
         return (
             "<p>Market briefing is currently running on fallback mode due to upstream API issues. "
@@ -292,7 +344,6 @@ def render_briefing_html(pools: list[PoolMetric], llm_prompt_template: str, erro
     top_pool = pools[0]
     avg_apy = sum(pool.apy for pool in pools) / len(pools)
     total_tvl = sum(pool.tvl_usd for pool in pools)
-    escaped_prompt = html.escape(llm_prompt_template)
 
     return (
         f"<p>Top stablecoin carry today is led by {html.escape(top_pool.asset)} on {html.escape(top_pool.network)} "
@@ -301,10 +352,6 @@ def render_briefing_html(pools: list[PoolMetric], llm_prompt_template: str, erro
         "Capital appears concentrated in a handful of deep pools, which supports execution quality but "
         "can tighten exits if volatility spikes. Practical positioning: prioritize diversified exposure across "
         "at least two networks while monitoring daily APY compression.</p>"
-        "<details class=\"mt-4 rounded-lg border border-slate-600/30 bg-slate-900/50 p-3\">"
-        "<summary class=\"cursor-pointer text-sm text-cyan-300\">LLM prompt template used for daily summary generation</summary>"
-        f"<pre class=\"mt-3 overflow-x-auto whitespace-pre-wrap text-xs text-slate-300\">{escaped_prompt}</pre>"
-        "</details>"
     )
 
 
@@ -313,9 +360,9 @@ def render_news_html(news_items: list[NewsItem]) -> str:
     for item in news_items:
         parts.append(
             f'''
-<li class="group rounded-xl border border-slate-600/30 bg-[var(--bg-primary)]/60 px-4 py-3 transition-all duration-300 hover:border-cyan-300/50 hover:bg-cyan-500/10">
-  <span class="mr-2 inline-flex rounded-md border border-cyan-300/40 bg-cyan-300/10 px-2 py-0.5 text-xs font-semibold text-cyan-300">[{html.escape(item.ticker)}]</span>
-  <span class="text-slate-100 group-hover:text-white">{html.escape(item.title)}</span>
+<li class="group border border-[var(--line)] bg-[var(--bg-void)]/50 px-4 py-3 transition-colors duration-200 hover:border-[var(--line-strong)]" style="border-radius: 3px;">
+  <span class="badge mr-2">[{html.escape(item.ticker)}]</span>
+  <span class="text-[var(--text-primary)]">{html.escape(item.title)}</span>
 </li>
 '''.strip()
         )
